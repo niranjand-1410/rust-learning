@@ -1,9 +1,7 @@
+use clap::Parser;
 use serde::Deserialize;
 use std::fs::OpenOptions;
 use std::path::Path;
-use clap::Parser;
-
-
 
 #[derive(Deserialize, Debug)]
 pub struct WeatherData {
@@ -23,6 +21,8 @@ pub struct CurrentUnits {
     pub time: String,
     pub interval: String,
     pub temperature_2m: String,
+    pub relative_humidity_2m: String,
+    pub wind_speed_10m: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -30,18 +30,18 @@ pub struct CurrentData {
     pub time: u64,
     pub interval: u32,
     pub temperature_2m: f64,
+    pub relative_humidity_2m: f64,
+    pub wind_speed_10m: f64,
 }
-
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(long)]
-    latitude: f32,
+    latitude: f64,
     #[arg(long)]
-    longitude: f32,
+    longitude: f64,
 }
-
 
 fn append_weather_to_csv(path: &str, data: &WeatherData) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(path);
@@ -53,11 +53,7 @@ fn append_weather_to_csv(path: &str, data: &WeatherData) -> Result<(), Box<dyn s
     };
 
     // Open file in append mode, create it if it does not exist
-    let file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(true)
-        .open(path)?;
+    let file = OpenOptions::new().create(true).append(true).open(path)?;
 
     // Build the CSV writer config
     let mut wtr = csv::WriterBuilder::new()
@@ -77,6 +73,8 @@ fn append_weather_to_csv(path: &str, data: &WeatherData) -> Result<(), Box<dyn s
             "current_time",
             "current_interval",
             "current_temperature_2m",
+            "current_relative_humidity_2m",
+            "current_wind_speed_10m",
         ])?;
     }
 
@@ -92,19 +90,24 @@ fn append_weather_to_csv(path: &str, data: &WeatherData) -> Result<(), Box<dyn s
         data.current.time.to_string(),
         data.current.interval.to_string(),
         data.current.temperature_2m.to_string(),
+        data.current.relative_humidity_2m.to_string(),
+        data.current.wind_speed_10m.to_string(),
     ])?;
 
     wtr.flush()?;
     Ok(())
 }
 
-#[tokio::main]
-async fn main()  -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    println!("Fetching data for latitude: {} longitude: {}",args.latitude, args.longitude);
 
-    let api_url = format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m&timezone=GMT&forecast_days=1&timeformat=unixtime",args.latitude, args.longitude);
-    let resp = reqwest::get(api_url).await?.json::<WeatherData>().await?;
-    println!("{:?}",resp);
-    append_weather_to_csv("data.csv",&resp)
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+    println!(
+        "Fetching data for latitude: {} longitude: {}",
+        args.latitude, args.longitude
+    );
+
+    let api_url = "https://api.open-meteo.com/v1/forecast?current=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT&forecast_days=1&timeformat=unixtime";
+    let resp = reqwest::blocking::Client::new().get(api_url).query(&[("latitude", args.latitude),("longitude", args.longitude)]).send()?.error_for_status()?.json::<WeatherData>()?;
+    println!("{:?}", resp);
+    append_weather_to_csv("data.csv", &resp)
 }
