@@ -98,7 +98,6 @@ fn append_weather_to_csv(path: &str, data: &WeatherData) -> Result<(), Box<dyn s
     Ok(())
 }
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!(
@@ -107,7 +106,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let api_url = "https://api.open-meteo.com/v1/forecast?current=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT&forecast_days=1&timeformat=unixtime";
-    let resp = reqwest::blocking::Client::new().get(api_url).query(&[("latitude", args.latitude),("longitude", args.longitude)]).send()?.error_for_status()?.json::<WeatherData>()?;
+    let resp = reqwest::blocking::Client::new()
+        .get(api_url)
+        .query(&[("latitude", args.latitude), ("longitude", args.longitude)])
+        .send()?
+        .error_for_status()?
+        .json::<WeatherData>()?;
     println!("{:?}", resp);
     append_weather_to_csv("data.csv", &resp)
 }
